@@ -1,0 +1,381 @@
+﻿<!DOCTYPE HTML>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>Highstock Example</title>
+
+		<script type="text/javascript" src="jquery-1.11.1.min.js"></script>
+		<style type="text/css">
+${demo.css}
+		</style>
+		<script type="text/javascript">
+$(function() {
+	//http://gd.emoney.cn:81/minute/0000001
+	//http://www.highcharts.com/samples/data/jsonp.php?filename=aapl-c.json&callback=?
+	//stock_min.json
+	//data.php
+	$.getJSON("stock_min.json", function(data) {
+	
+		//把曲线数据格式化成highchat接受的数据
+		for(var h=0;h<data.dataset.set.length;h++){
+			
+			//日期的原始格式 201412050931
+			var dArr = new Array();
+			for(var hh=0;hh<5;hh++){
+				var numb = Number(data.dataset.set[h].date.slice((hh-1)*2+4,hh*2+4));
+				if(hh==0){numb = Number(data.dataset.set[h].date.slice(0,4))}
+				else if(hh==1){numb-=1};
+				dArr.push(numb);
+			}
+			var dateUTC = Number(Date.UTC(dArr[0],dArr[1],dArr[2],dArr[3],dArr[4]));//得出的UTC时间
+						
+			//0开,1高,2低,3价,4量,5额
+			var priceArr = data.dataset.set[h].value.split(",");
+			
+			
+			//交易量数据
+			//[{x:Date.UTC(2014, 11, 5,9,0),y:1990.2,color:"ff0000"},{x:Date.UTC(2014, 11, 5,9,0),y:1990.2,color:"ff0000"}...]
+			var columnColor = "#ff0000";
+			if(h>0){if(timeDivisionData.slice(-1)[0].y-Number(priceArr[3])>0){columnColor = "#00a800"}}
+			columnData.push({x:dateUTC,y:Number(priceArr[4]),color:columnColor});
+			
+			timeDivisionData.push({x:dateUTC,y:Number(priceArr[3])});
+		}
+		while(columnData.length<240){columnData.push({x:columnData.slice(-1)[0].x+(60*1000),y:0})} //把交易量的数据不足15:00的部分全部设置为0，这样做，盘中时才能让x轴把15:00的部分显示出来
+		
+		//console.log(columnData);
+	
+		// Create the chart
+		$('#container').highcharts('StockChart', {
+			credits: { enabled:false},//去掉右下角的logo
+			
+			rangeSelector : { //缩放组件一行，里面包括按钮（点击后直接缩放到指定大小）、日期输入框（输入后只显示指定日期之间的缩放大小）
+				buttons: [{ //这是定义按钮的
+					type: 'day',
+					count: 1,
+					text: '一天'
+				}],
+				selected : 0, //默认选择上面按钮中的哪个按钮，0表示第一个
+				inputEnabled: $('#container').width() > 480 //是否显示日期输入框
+			},
+			
+			chart: {
+				events: {
+					load: function(chart) {
+						h_yAxis = this.axes[1];
+						h_chart = this;
+						//分时数据中的最大振幅
+						//var maxAmplitude = Math.max(Math.abs(h_yAxis.dataMax - timeDivisionData[0].y),Math.abs(h_yAxis.dataMin - timeDivisionData[0].y))
+						//maxAmplitude = Math.round(maxAmplitude*100)/100;//四舍五入保留两位小数
+						//h_yAxis.max = timeDivisionData[0].y+(maxAmplitude+28);
+						//h_yAxis.min = timeDivisionData[0].y-(maxAmplitude+28);
+						
+						//让x轴固定把最大值设置为15：00
+						var h_xAxis = this.axes[0];
+						//this.axes[0].min = Date.UTC(2014,11,5,9,30);
+						//h_xAxis.max = Date.UTC(2014,11,5,18,0);//为什么第四个参数是18而不是收盘的15？下一行作答
+						//其中一个可能的原因是x轴本来就会比数据长3个小时，只是x轴右侧是长于显示区域的。（晚一点再找找是否存在一个参数可以把x轴的长度就等于显示出来的长度，如果最终发现这个方法有bug，可以使用上面增加交易量数据数量的方法）
+						//this.axes[0].userMax = 1417798600000;
+						//this.axes[0].minRange = 3600000*10;
+						//this.axes[0].userMinRange = 3600000*10;
+						//this.axes[0].zoomEnabled= false;
+						
+						//getExtremes
+						
+						this.setTitle(null, {
+							text: "大盘"
+						});
+						
+						series = this.series[0];
+						
+						showHightLow(h_yAxis);
+					}
+				}
+		    },
+			
+			title : {
+				text : '股票实时行情'
+			},
+			
+			yAxis: [{
+		        labels: { //行情左
+					//enabled: false,
+		    		align: 'right', //文字的左右对齐，左对齐的时候，数值会放到y轴右侧
+		    		x: -3,
+					y: 5,
+					formatter: function() {
+						if(this.isFirst||this.isLast){return}
+						var percentVal = Math.round((this.value-timeDivisionData[0].y)/timeDivisionData[0].y*10000)/100;
+						return this.value + " (" + percentVal + "%)";
+					}
+		    	},
+		        title: {
+		            text: '分时行情'
+		        },
+		        height: '60%',
+		        lineWidth: 2,
+				opposite: false,//是否把它显示到另一边（右边）
+				//startOnTick: false, 
+				//showFirstLabel: true,
+				//showLastLabel: true,
+				
+				
+				//minorTickInterval: "auto", //这个和下面都是除了主要横线之外的横线（贯穿整个内容区的）
+				//minorGridLineColor: "#ff0000",
+				//minorGridLineWidth: 1,
+				//minorTickColor: "#00ff00",//这个和下面都是所有横线的刻度，是用于写上标度的
+				//minorTickWidth: 2,
+				
+				//max: 3000, //固定y轴的最大值 要设置这两个的话，推荐把ordinal设置为false
+				//min: 2800, //最小值
+				
+				//ordinal: false, //详细请看下面xAxis里的同名参数
+				
+				//reversedStacks: false, //不懂，文档说得好像x和y轴只有其中一个有效
+				
+				//showEmpty: true, //如果这个轴没有数据，是否依然显示
+				
+				//tick都是主要的刻度，而且主要的横线会与主要刻度的位置或者数量保持一致
+				tickColor: "#ff000",
+				//tickInterval: 50, //设置主要刻度线的间隔，默认是null，刻度不是自动计算时这个参数和tickPixelInterval均无效
+				tickLength: 20,
+				//tickPixelInterval: 50, //tickInterval 如果是null这个才有效，但是效果似乎与 tickInterval 是一样的
+				tickWidth: 2,
+				//tickPosition: "inside",
+				
+				tickPositioner: function () { //手动计算主刻度线的位置
+					//console.log(this);
+					var middleLine = timeDivisionData[0].y,
+						paddingTopDown = Math.abs(this.dataMax-this.dataMin)*0.12,
+						positions = [this.dataMin-paddingTopDown,middleLine,this.dataMax+paddingTopDown];
+						//tick = Math.floor(this.dataMin),
+						//increment = Math.ceil((this.dataMax - this.dataMin) / 6);
+					
+					//for (tick; tick - increment <= this.dataMax; tick += increment) {
+					//	positions.push(tick);
+					//}
+					
+					return positions;
+				},
+				
+				
+		    },{
+		    	labels: { //交易量
+		    		align: 'right',
+		    		x: -3,
+					y: 8,
+					formatter: function() {
+						if(this.value==0){return 0}
+						else if(this.value>=10000)return this.value/10000 + "万"
+						else if(this.value>=100000000)return this.value/100000000 + "亿"
+						return this.value
+					}
+		    	},
+		        title: {
+		            text: '交易量（手）'
+		        },
+		        top: '65%',
+		        height: '35%',
+		        offset: 0,
+				showLastLabel:true,
+		        lineWidth: 2,
+				opposite: false,
+				tickPositioner: function(){
+					var dataMaxBits = Math.pow(10,(String(this.dataMax).length-1)),
+						axisMax = this.dataMax>10?Math.ceil(this.dataMax/dataMaxBits)*dataMaxBits:10,
+						positions = [0,axisMax/2,this.dataMax];
+					
+					return positions
+				}
+		    }],
+			
+			xAxis: { //
+				endOnTick: false,
+				startOnTick: true, 
+				//min: Date.UTC(2014,11,5,9,30), //X轴最小值，只有ordinal为false的时候才能看出来，如果startOnTick为true，这里设置的不是刻度值中的值，会被向前推进为刻度值
+				//minPadding: 3600000*3, //不懂
+				//max: Date.UTC(2014,11,5,15,0), //X轴最小值，只有ordinal为false的时候才能看出来
+				//maxPadding: 5, //不懂
+				//tickColor: "#898989", //刻度线的颜色
+				//minRange:3600000*10, //允许缩放的最小范围（如果设定的值比现有数据还要多，范围等于刚好显示完所有数据）
+				minorTickInterval: 'auto',//设置是否出现小的纵向网格线（此标尺显示在图标数据区）
+				minorGridLineColor:'#f0f0f0', //上面参数的线的颜色
+				//lineColor: '#197F07',//设置X轴颜色
+				//tickWidth: 1,//设置X轴坐标点是否出现占位及其宽度
+				tickPixelInterval:150,//设置横坐标刻度线的密度（包括网格线的横向密度）
+				//gridLineWidth: 1,//设置网格主要的纵线宽度
+				//gridLineColor: '#ff0000',//设置上面参数线的颜色，上面如果不设置，是改不了颜色的。
+				
+				//ceiling: Number(Date.UTC(2014,11,5,11,00)), //设置x轴最大的值，如果这个值大于数据的x值，还是不会让x轴比数据的x值大
+				showFirstLabel:true,
+				
+				//ordinal: false, //缺失的数据是否占用位置，false：占用，true：不占用。highchat里有个好功能，就是可以把中间缺失的数据不占用x轴位置，也可以占用，比如周末没有数据的，就不会把周末显示在x轴中
+				//reversed: true, //左右反转曲线/K线/直方图（true：把最新的数据显示在左边，如果有动态添加的数据，也是增加在左边）
+				events: {
+					afterSetExtremes: function(e){
+						//e.max = Date.UTC(2014,11,5,19,0)
+					}
+				},
+				labels:{
+					//step:2, //设置x轴隔多少个显示刻度值
+					/*formatter:function(){ //自由设定每个刻度值怎么显示
+						console.log(this.value);
+						//return this.value ;
+						
+					}*/
+				}
+			},
+			
+			tooltip: {
+				//crosshairs: [true,true],
+				positioner: function (labelWidth,labelHeight,point) { //用于自定义信息窗的位置（就是显示鼠标选择的点的数据的那个）
+					//point:是鼠标指针的位置 plotX: 指针的x值, plotY: 指针的y值,
+					console.log(this);
+					return { x: point.plotX<labelWidth+20?point.plotX+labelWidth-20:point.plotX-50, y: point.plotY+50 };
+				},
+				/*formatter: function () {
+					
+					console.log(h_chart.tooltip.options);
+					var s = '<b>' + Highcharts.dateFormat('%A, %b %e, %Y', this.x) + '</b>';
+
+					$.each(this.points, function () {
+						s += '<br/>交易量' + this.y + '手';
+						if(this.y==0){h_chart.tooltip.options.enabled = false}
+					});
+
+					return s;
+				}*/
+			},
+			
+			scrollbar : {
+				enabled : false//隐藏滚动条
+			},
+			
+			navigator : {
+				enabled : false//隐藏全局数据条
+			},
+			
+			series : [{
+				name : '价格',
+				data : timeDivisionData,
+				tooltip: {
+					valueDecimals: 2 //小数数量
+				},
+				//pointStart: Date.UTC(2014, 11, 5,9,0),
+				//pointInterval: 24 * 3600 * 1000,
+				//pointPlacement: "between",
+				dataGrouping: { //把数据合并，比如纵向的位置显示不了所有数据了，会把其中一些数据点合并成一个，数值可以计算为两个数据的平均值，也可以计算为两个数据之和
+					enabled: false,
+					forced: true
+		        }
+			},{
+		        type: 'column',
+		        name: '交易量',
+		        data: columnData,
+		        yAxis: 1,
+				tooltip: {
+		        	valueDecimals: 0,
+		        	valueSuffix: "手"
+		        },
+				dataGrouping: {
+					enabled: false,
+					forced: true
+		        }
+		    }]
+		});
+	});
+
+});
+
+	var intervalArr = [],
+		series = new Object,
+		h_yAxis = new Object,
+		h_chart = new Object,
+		
+		timeDivisionData = [],//格式化好的数据放到这里来
+		columnData = [];//交易量数据
+		
+/*用于重新显示最高最低线
+	theAxis：在哪个轴上加。
+
+*/
+function showHightLow(theAxis){
+	var maxPercentVal = Math.round((theAxis.dataMax-timeDivisionData[0].y)/timeDivisionData[0].y*10000)/100,
+		minPercentVal = Math.round((theAxis.dataMin-timeDivisionData[0].y)/timeDivisionData[0].y*10000)/100;
+	var redPlotLine = { //表格的辅助线
+					id: "redPlotLine",
+					value : theAxis.dataMax,
+					color : '#ffbdbd',
+					dashStyle : 'shortdash',
+					width : 1,
+					zIndex: 2,
+					label : {
+						text : theAxis.dataMax + " (" + maxPercentVal + "%)"
+					}
+				},
+		greenPlotLine = {
+					id: "greenPlotLine",
+					value : theAxis.dataMin,
+					color : '#aaffb2',
+					dashStyle : 'shortdash',
+					width : 1,
+					zIndex: 2,
+					label : {
+						text : theAxis.dataMin + " (" + minPercentVal + "%)"
+					}
+				}
+	
+	theAxis.removePlotLine("redPlotLine");
+	theAxis.removePlotLine("greenPlotLine");
+	theAxis.addPlotLine(redPlotLine);
+	theAxis.addPlotLine(greenPlotLine);
+	
+}
+		
+		
+
+function startOrStop(){
+	if($("#startOrStop").attr("value")=="动吧~~~~~~~~~")start()
+	else stop()
+}
+function start(){
+						var intervalNum = setInterval(function() {
+							var endData = series.data.slice(-1)[0],
+								x = endData.x +(60*1000),
+								y = endData.y + Math.round(Math.random() * 10);
+								
+							
+							if(x>Date.UTC(2014,11,5,15,0)){
+								for(var hh=0;hh<intervalArr.length;hh++){
+									clearInterval(intervalArr[hh]);
+								}
+								return
+							}
+								
+							series.addPoint([x, y], true, false);
+							
+							showHightLow(h_yAxis);
+							
+						}, 1000);
+						intervalArr.push(intervalNum);
+						
+	$("#startOrStop").attr("value","停吧~~~~~~~~~");
+}
+function stop(){
+	for(var hh=0;hh<intervalArr.length;hh++){
+									clearInterval(intervalArr[hh]);
+								}
+	$("#startOrStop").attr("value","动吧~~~~~~~~~");
+}
+
+		</script>
+	</head>
+	<body>
+<script src="js/highstock.js"></script>
+
+
+<div id="container" style="height: 400px; min-width: 310px"></div>
+<input value="动吧~~~~~~~~~" onclick="startOrStop()" type="button" id="startOrStop">
+
+	</body>
+</html>
